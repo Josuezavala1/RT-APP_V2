@@ -3,102 +3,114 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>RT Shot Safety Calculator (mR-only)</title>
+    <title>RT Shot &amp; Safety Calculator v2</title>
     <link rel="stylesheet" href="styles.css" />
+    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
   </head>
   <body>
-    <header class="site-header">
-      <h1>RT Shot Safety Calculator (mR-only)</h1>
-      <span class="status-pill" aria-label="Version status">Draft v2</span>
-    </header>
+    <main class="container">
+      <header class="page-title-card">
+        <h1>RT Shot &amp; Safety Calculator v2</h1>
+        <p>All radiation values are in mR/hr, distances in feet, and exposure time in minutes.</p>
+      </header>
 
-    <main class="container" id="calculator-form">
-      <section class="card">
-        <h2>1) Job Information</h2>
+      <section class="card" id="section-job-info">
+        <h2>Section 1 — Job Information</h2>
         <div class="field-grid">
-          <label for="job-name">Job Name</label>
-          <input id="job-name" name="job-name" type="text" placeholder="Enter job name" />
+          <label for="unitSite">Unit / Site <span class="required">*</span></label>
+          <input id="unitSite" type="text" required />
 
-          <label for="job-location">Location</label>
-          <input id="job-location" name="job-location" type="text" placeholder="Enter location" />
+          <label for="jobDate">Date <span class="required">*</span></label>
+          <input id="jobDate" type="date" required />
 
-          <label for="job-date">Date</label>
-          <input id="job-date" name="job-date" type="text" placeholder="MM/DD/YYYY" />
+          <label for="drawingNumber">Drawing Number <span class="required">*</span></label>
+          <input id="drawingNumber" type="text" required />
+
+          <label for="cml">CML</label>
+          <input id="cml" type="text" />
         </div>
       </section>
 
-      <section class="card">
-        <h2>2) Source Information</h2>
+      <section class="card" id="section-source-info">
+        <h2>Section 2 — Source Information</h2>
         <div class="field-grid">
-          <label for="source-type">Source Type</label>
-          <input id="source-type" name="source-type" type="text" placeholder="Enter source type" />
+          <label for="isotope">Isotope <span class="required">*</span></label>
+          <select id="isotope">
+            <option value="IR192">IR192</option>
+            <option value="Co-60">Co-60</option>
+            <option value="Se-75">Se-75</option>
+          </select>
 
-          <label for="source-activity">Source Activity (mR)</label>
-          <input id="source-activity" name="source-activity" type="text" placeholder="Enter activity" />
+          <label for="isotopeConstant">Constant (mR/hr per Ci @ 1 ft)</label>
+          <input id="isotopeConstant" type="number" readonly />
 
-          <label for="source-notes">Source Notes</label>
-          <input id="source-notes" name="source-notes" type="text" placeholder="Add notes" />
+          <label for="focusSpot">Focus Spot (d) <span class="required">*</span></label>
+          <input id="focusSpot" type="number" min="0" step="0.001" required />
+
+          <label for="sourceActivity">Source Activity (Ci) <span class="required">*</span></label>
+          <input id="sourceActivity" type="number" min="0" step="0.001" required />
         </div>
       </section>
 
-      <section class="card">
-        <h2>3) Barricade Calculator (Duty Cycle)</h2>
+      <section class="card" id="section-boundaries">
+        <h2>Section 3 — Radiation Boundaries (Duty-Cycle)</h2>
         <div class="field-grid">
-          <label for="shots-per-hour">Shots per Hour</label>
-          <input id="shots-per-hour" name="shots-per-hour" type="text" placeholder="Enter shots/hr" />
+          <label for="exposuresPerHour">Exposures per hour</label>
+          <input id="exposuresPerHour" type="number" min="0" step="1" value="0" />
 
-          <label for="shot-duration">Shot Duration (sec)</label>
-          <input id="shot-duration" name="shot-duration" type="text" placeholder="Enter duration" />
-
-          <label for="barricade-distance">Barricade Distance (ft)</label>
-          <input id="barricade-distance" name="barricade-distance" type="text" placeholder="Enter distance" />
+          <label for="secondsPerExposure">Seconds per exposure</label>
+          <input id="secondsPerExposure" type="number" min="0" step="0.1" value="0" />
+        </div>
+        <div class="result-grid">
+          <div class="result-item"><strong>Time Fraction:</strong> <span id="timeFraction">0.0000</span></div>
+          <div class="result-item"><strong>2 mR/hr Boundary:</strong> <span id="boundary2">0.0 ft</span></div>
+          <div class="result-item"><strong>100 mR/hr Boundary:</strong> <span id="boundary100">0.0 ft</span></div>
         </div>
       </section>
 
-      <section class="card">
-        <h2>4) Material Attenuation Stack</h2>
-        <div class="field-grid">
-          <label for="material-1">Material Layer 1</label>
-          <input id="material-1" name="material-1" type="text" placeholder="e.g., lead" />
-
-          <label for="material-2">Material Layer 2</label>
-          <input id="material-2" name="material-2" type="text" placeholder="e.g., concrete" />
-
-          <label for="material-notes">Attenuation Notes</label>
-          <input id="material-notes" name="material-notes" type="text" placeholder="Add notes" />
+      <section class="card" id="section-materials">
+        <h2>Section 4 — Material &amp; Attenuation</h2>
+        <div id="layersContainer" class="layers"></div>
+        <button type="button" id="addLayerButton" class="btn-primary">Add Material Layer</button>
+        <div class="result-grid">
+          <div class="result-item"><strong>Total Attenuation Factor:</strong> <span id="attenuationFactor">1.000000</span></div>
         </div>
       </section>
 
-      <section class="card">
-        <h2>5) Shot Cards</h2>
+      <section class="card" id="section-shots">
+        <h2>Section 5 — Shot Calculator (Repeatable)</h2>
         <div class="field-grid">
-          <label for="card-id">Shot Card ID</label>
-          <input id="card-id" name="card-id" type="text" placeholder="Enter card ID" />
+          <label for="overallFilmDistance">OFD (Object-Film Distance) for UG formula (ft)</label>
+          <input id="overallFilmDistance" type="number" min="0" step="0.001" value="0" />
+        </div>
+        <div id="shotCardsContainer" class="shot-cards"></div>
+        <button type="button" id="addShotButton" class="btn-primary">Add Shot</button>
+      </section>
 
-          <label for="card-operator">Operator</label>
-          <input id="card-operator" name="card-operator" type="text" placeholder="Enter operator name" />
+      <section class="card" id="section-exposure">
+        <h2>Section 6 — Exposure Time Calculator</h2>
+        <div class="field-grid">
+          <label for="exposureDistance">Distance (ft)</label>
+          <input id="exposureDistance" type="number" min="0" step="0.001" value="0" />
 
-          <label for="card-comments">Comments</label>
-          <input id="card-comments" name="card-comments" type="text" placeholder="Add comments" />
+          <label for="targetIntensity">Target Intensity (mR/hr)</label>
+          <input id="targetIntensity" type="number" min="0" step="0.001" value="2" />
+        </div>
+        <div class="result-grid">
+          <div class="result-item"><strong>Estimated Exposure Time:</strong> <span id="exposureTime">0.0 minutes</span></div>
         </div>
       </section>
 
-      <section class="card">
-        <h2>6) PDF Export</h2>
-        <div class="field-grid">
-          <label for="pdf-filename">PDF Filename</label>
-          <input id="pdf-filename" name="pdf-filename" type="text" placeholder="Enter filename" />
+      <section class="card" id="section-warnings">
+        <h2>Section 7 — Safety Warnings</h2>
+        <ul id="warningsList" class="warnings-list"></ul>
+      </section>
 
-          <label for="pdf-recipient">Recipient</label>
-          <input id="pdf-recipient" name="pdf-recipient" type="text" placeholder="Enter recipient" />
-
-          <label for="pdf-notes">Export Notes</label>
-          <input id="pdf-notes" name="pdf-notes" type="text" placeholder="Add export notes" />
-        </div>
+      <section class="card" id="section-pdf">
+        <h2>Section 8 — PDF Report</h2>
+        <button type="button" id="generatePdfButton" class="btn-primary btn-large">Generate &amp; Download PDF</button>
       </section>
     </main>
-
-    <footer class="site-footer">All outputs are mR/hr and feet (no R/hr).</footer>
 
     <script src="script.js"></script>
   </body>
