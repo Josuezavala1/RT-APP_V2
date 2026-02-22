@@ -18,10 +18,15 @@
     focusSpot: document.getElementById("focusSpot"),
     sourceActivity: document.getElementById("sourceActivity"),
     exposuresPerHour: document.getElementById("exposuresPerHour"),
-    secondsPerExposure: document.getElementById("secondsPerExposure"),
+    minutesPerExposure: document.getElementById("minutesPerExposure"),
+    tungstenCollimatorHvl: document.getElementById("tungstenCollimatorHvl"),
+    beamMinutesPerHour: document.getElementById("beamMinutesPerHour"),
     timeFraction: document.getElementById("timeFraction"),
     boundary2: document.getElementById("boundary2"),
     boundary100: document.getElementById("boundary100"),
+    distanceNoShield: document.getElementById("distanceNoShield"),
+    distanceWithShield: document.getElementById("distanceWithShield"),
+    distanceEmergency: document.getElementById("distanceEmergency"),
     layersContainer: document.getElementById("layersContainer"),
     addLayerButton: document.getElementById("addLayerButton"),
     attenuationFactor: document.getElementById("attenuationFactor"),
@@ -61,8 +66,59 @@
 
   function getTimeFraction() {
     const exposures = numberValue(dom.exposuresPerHour);
-    const seconds = numberValue(dom.secondsPerExposure);
-    return (exposures * seconds) / 3600;
+    const minutes = numberValue(dom.minutesPerExposure);
+    return (exposures * minutes) / 60;
+  }
+
+  function getBeamMinutesPerHour() {
+    const exposures = numberValue(dom.exposuresPerHour);
+    const minutes = numberValue(dom.minutesPerExposure);
+    return exposures * minutes;
+  }
+
+  function getMaterialStackHvlTotal() {
+    if (!materialLayers.length) {
+      return 0;
+    }
+
+    return materialLayers.reduce((total, layer) => total + (Number(layer.hvlCount) || 0), 0);
+  }
+
+  function getDistanceWithoutShield(limit = 2) {
+    const ci = numberValue(dom.sourceActivity);
+    const constant = ISOTOPE_CONSTANTS[dom.isotope.value] || 0;
+    const dutyCycle = getTimeFraction();
+
+    if (limit <= 0 || ci <= 0 || constant <= 0 || dutyCycle <= 0) {
+      return 0;
+    }
+
+    return Math.sqrt((ci * constant * dutyCycle) / limit);
+  }
+
+  function getDistanceWithAllShielding(limit = 2) {
+    const ci = numberValue(dom.sourceActivity);
+    const constant = ISOTOPE_CONSTANTS[dom.isotope.value] || 0;
+    const dutyCycle = getTimeFraction();
+    const totalHvl = numberValue(dom.tungstenCollimatorHvl) + getMaterialStackHvlTotal();
+    const attenuation = Math.pow(0.5, totalHvl);
+
+    if (limit <= 0 || ci <= 0 || constant <= 0 || dutyCycle <= 0 || attenuation <= 0) {
+      return 0;
+    }
+
+    return Math.sqrt((ci * constant * attenuation * dutyCycle) / limit);
+  }
+
+  function getEmergencyDistance(limit = 2) {
+    const ci = numberValue(dom.sourceActivity);
+    const constant = ISOTOPE_CONSTANTS[dom.isotope.value] || 0;
+
+    if (limit <= 0 || ci <= 0 || constant <= 0) {
+      return 0;
+    }
+
+    return Math.sqrt((ci * constant) / limit);
   }
 
   function getBoundaryDistance(limit) {
@@ -223,7 +279,8 @@
       focusSpot: dom.focusSpot.value,
       sourceActivity: dom.sourceActivity.value,
       exposuresPerHour: dom.exposuresPerHour.value,
-      secondsPerExposure: dom.secondsPerExposure.value,
+      minutesPerExposure: dom.minutesPerExposure.value,
+      tungstenCollimatorHvl: dom.tungstenCollimatorHvl.value,
       layers: materialLayers,
       overallFilmDistance: dom.overallFilmDistance.value,
       shots: shotCards,
@@ -247,7 +304,8 @@
       dom.focusSpot.value = state.focusSpot || "";
       dom.sourceActivity.value = state.sourceActivity || "";
       dom.exposuresPerHour.value = state.exposuresPerHour || 0;
-      dom.secondsPerExposure.value = state.secondsPerExposure || 0;
+      dom.minutesPerExposure.value = state.minutesPerExposure || ((Number(state.secondsPerExposure) || 0) / 60);
+      dom.tungstenCollimatorHvl.value = state.tungstenCollimatorHvl || 0;
       materialLayers = Array.isArray(state.layers) ? state.layers : [];
       dom.overallFilmDistance.value = state.overallFilmDistance || 0;
       shotCards = Array.isArray(state.shots) ? state.shots : [];
@@ -262,11 +320,15 @@
     dom.isotopeConstant.value = ISOTOPE_CONSTANTS[dom.isotope.value];
 
     const timeFraction = getTimeFraction();
+    dom.beamMinutesPerHour.textContent = getBeamMinutesPerHour().toFixed(1);
     dom.timeFraction.textContent = timeFraction.toFixed(4);
 
     dom.attenuationFactor.textContent = getAttenuationFactor().toFixed(6);
     dom.boundary2.textContent = `${getBoundaryDistance(2).toFixed(1)} ft`;
     dom.boundary100.textContent = `${getBoundaryDistance(100).toFixed(1)} ft`;
+    dom.distanceNoShield.textContent = `${getDistanceWithoutShield(2).toFixed(1)} ft`;
+    dom.distanceWithShield.textContent = `${getDistanceWithAllShielding(2).toFixed(1)} ft`;
+    dom.distanceEmergency.textContent = `${getEmergencyDistance(2).toFixed(1)} ft`;
     dom.exposureTime.textContent = `${getExposureMinutes().toFixed(1)} minutes`;
 
     renderLayers();
@@ -424,7 +486,8 @@
     dom.focusSpot,
     dom.sourceActivity,
     dom.exposuresPerHour,
-    dom.secondsPerExposure,
+    dom.minutesPerExposure,
+    dom.tungstenCollimatorHvl,
     dom.overallFilmDistance,
     dom.exposureDistance,
     dom.targetIntensity,
