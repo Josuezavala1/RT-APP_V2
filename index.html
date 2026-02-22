@@ -55,11 +55,20 @@
       <section class="card" id="section-boundaries">
         <h2>Section 3 — Radiation Boundaries (Duty-Cycle)</h2>
         <div class="field-grid">
-          <label for="exposuresPerHour">Exposures per hour</label>
-          <input id="exposuresPerHour" type="number" min="0" step="1" value="0" />
+          <label for="exposureTimeUnit">Exposure Time Unit</label>
+          <select id="exposureTimeUnit">
+            <option value="seconds">Seconds</option>
+            <option value="minutes">Minutes</option>
+          </select>
 
-          <label for="minutesPerExposure">Minutes per exposure</label>
-          <input id="minutesPerExposure" type="number" min="0" step="0.1" value="0" />
+          <label for="timePerExposure">Time per exposure</label>
+          <input id="timePerExposure" type="number" min="0" step="0.1" value="0" />
+
+          <label for="numberOfExposures">Number of exposures</label>
+          <input id="numberOfExposures" type="number" min="0" step="1" value="0" />
+
+          <label for="totalExposureMinutesOverride">Total exposure minutes (manual override)</label>
+          <input id="totalExposureMinutesOverride" type="number" min="0" step="0.1" />
 
           <label for="tungstenCollimatorHvl">Tungsten Collimator HVLs</label>
           <input id="tungstenCollimatorHvl" type="number" min="0" step="0.001" value="0" />
