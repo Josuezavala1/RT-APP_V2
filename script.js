@@ -1,37 +1,447 @@
 (function () {
-  const storageKey = "rt-app-v2-draft-inputs";
-  const inputs = document.querySelectorAll("input");
+  // Locked isotope constants in mR/hr per Ci @ 1 ft.
+  const ISOTOPE_CONSTANTS = {
+    IR192: 5200,
+    "Co-60": 14000,
+    "Se-75": 2200,
+  };
 
-  function loadSavedInputs() {
-    const raw = sessionStorage.getItem(storageKey);
-    if (!raw) {
-      return;
+  const STORAGE_KEY = "rt-shot-safety-v2-state";
+
+  const dom = {
+    unitSite: document.getElementById("unitSite"),
+    jobDate: document.getElementById("jobDate"),
+    drawingNumber: document.getElementById("drawingNumber"),
+    cml: document.getElementById("cml"),
+    isotope: document.getElementById("isotope"),
+    isotopeConstant: document.getElementById("isotopeConstant"),
+    focusSpot: document.getElementById("focusSpot"),
+    sourceActivity: document.getElementById("sourceActivity"),
+    exposuresPerHour: document.getElementById("exposuresPerHour"),
+    secondsPerExposure: document.getElementById("secondsPerExposure"),
+    timeFraction: document.getElementById("timeFraction"),
+    boundary2: document.getElementById("boundary2"),
+    boundary100: document.getElementById("boundary100"),
+    layersContainer: document.getElementById("layersContainer"),
+    addLayerButton: document.getElementById("addLayerButton"),
+    attenuationFactor: document.getElementById("attenuationFactor"),
+    overallFilmDistance: document.getElementById("overallFilmDistance"),
+    shotCardsContainer: document.getElementById("shotCardsContainer"),
+    addShotButton: document.getElementById("addShotButton"),
+    exposureDistance: document.getElementById("exposureDistance"),
+    targetIntensity: document.getElementById("targetIntensity"),
+    exposureTime: document.getElementById("exposureTime"),
+    warningsList: document.getElementById("warningsList"),
+    generatePdfButton: document.getElementById("generatePdfButton"),
+  };
+
+  let materialLayers = [];
+  let shotCards = [];
+
+  function numberValue(el) {
+    const value = Number(el.value);
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  function requiredMissing() {
+    return !dom.unitSite.value || !dom.jobDate.value || !dom.drawingNumber.value || numberValue(dom.focusSpot) <= 0 || numberValue(dom.sourceActivity) <= 0;
+  }
+
+  function getAttenuationFactor() {
+    if (!materialLayers.length) {
+      return 1;
     }
 
-    let savedValues;
-    try {
-      savedValues = JSON.parse(raw);
-    } catch (_error) {
-      return;
+    return materialLayers.reduce((factor, layer) => {
+      const hvlCount = Number(layer.hvlCount) || 0;
+      const layerFactor = Math.pow(0.5, hvlCount);
+      return factor * layerFactor;
+    }, 1);
+  }
+
+  function getTimeFraction() {
+    const exposures = numberValue(dom.exposuresPerHour);
+    const seconds = numberValue(dom.secondsPerExposure);
+    return (exposures * seconds) / 3600;
+  }
+
+  function getBoundaryDistance(limit) {
+    const ci = numberValue(dom.sourceActivity);
+    const constant = ISOTOPE_CONSTANTS[dom.isotope.value] || 0;
+    const timeFraction = getTimeFraction();
+    const attenuation = getAttenuationFactor();
+
+    if (limit <= 0 || ci <= 0 || constant <= 0 || timeFraction <= 0 || attenuation <= 0) {
+      return 0;
     }
 
-    inputs.forEach((input) => {
-      if (savedValues[input.id] !== undefined) {
-        input.value = savedValues[input.id];
+    return Math.sqrt((ci * constant * timeFraction * attenuation) / limit);
+  }
+
+  function getShotResult(shot) {
+    const d = numberValue(dom.focusSpot);
+    const ofd = numberValue(dom.overallFilmDistance);
+    const pdd = Number(shot.pdd) || 0;
+    const sod = pdd;
+
+    if (d <= 0 || sod <= 0) {
+      return {
+        sod,
+        spd: 0,
+        ug: 0,
+        magnification: 0,
+        blowUpPercent: 0,
+      };
+    }
+
+    // Solve UG = (d * OFD) / SOD for SOD at UG <= 0.024.
+    const requiredSod = ofd > 0 ? (d * ofd) / 0.024 : sod;
+    const spd = Math.max(requiredSod - pdd, 0);
+    const ug = ofd > 0 ? (d * ofd) / Math.max(requiredSod, sod) : 0;
+    const sfd = Math.max(requiredSod, sod) + ofd;
+    const magnification = sfd / Math.max(requiredSod, sod);
+    const blowUpPercent = (magnification - 1) * 100;
+
+    return {
+      sod: Math.max(requiredSod, sod),
+      spd,
+      ug,
+      magnification,
+      blowUpPercent,
+    };
+  }
+
+  function getExposureMinutes() {
+    const ci = numberValue(dom.sourceActivity);
+    const constant = ISOTOPE_CONSTANTS[dom.isotope.value] || 0;
+    const distance = numberValue(dom.exposureDistance);
+    const attenuation = getAttenuationFactor();
+    const targetIntensity = numberValue(dom.targetIntensity);
+
+    if (ci <= 0 || constant <= 0 || distance <= 0 || attenuation <= 0 || targetIntensity <= 0) {
+      return 0;
+    }
+
+    // Intensity at distance with attenuation in mR/hr.
+    const intensity = (ci * constant * attenuation) / (distance * distance);
+    // Time in hours needed for target intensity ratio, then convert to minutes.
+    const hours = targetIntensity / intensity;
+    return Math.max(hours * 60, 0);
+  }
+
+  function renderLayers() {
+    dom.layersContainer.innerHTML = "";
+
+    materialLayers.forEach((layer, index) => {
+      const wrapper = document.createElement("div");
+      wrapper.className = "layer-card";
+
+      wrapper.innerHTML = `
+        <div class="card-row-title">
+          <span>Layer ${index + 1}</span>
+          <button type="button" class="btn-remove" data-remove-layer="${layer.id}">Remove</button>
+        </div>
+        <div class="field-grid">
+          <label>Material</label>
+          <select data-layer-field="material" data-layer-id="${layer.id}">
+            <option value="Steel" ${layer.material === "Steel" ? "selected" : ""}>Steel</option>
+            <option value="Concrete" ${layer.material === "Concrete" ? "selected" : ""}>Concrete</option>
+            <option value="Lead" ${layer.material === "Lead" ? "selected" : ""}>Lead</option>
+            <option value="Tungsten" ${layer.material === "Tungsten" ? "selected" : ""}>Tungsten</option>
+          </select>
+          <label>Thickness (inches)</label>
+          <input type="number" min="0" step="0.001" data-layer-field="thickness" data-layer-id="${layer.id}" value="${layer.thickness}" />
+          <label>HVL count</label>
+          <input type="number" min="0" step="0.001" data-layer-field="hvlCount" data-layer-id="${layer.id}" value="${layer.hvlCount}" />
+        </div>
+      `;
+
+      dom.layersContainer.appendChild(wrapper);
+    });
+  }
+
+  function renderShots() {
+    dom.shotCardsContainer.innerHTML = "";
+
+    shotCards.forEach((shot, index) => {
+      const result = getShotResult(shot);
+      const wrapper = document.createElement("div");
+      wrapper.className = "shot-card";
+
+      wrapper.innerHTML = `
+        <div class="card-row-title">
+          <span>Shot ${index + 1}</span>
+          <button type="button" class="btn-remove" data-remove-shot="${shot.id}">Remove</button>
+        </div>
+        <div class="field-grid">
+          <label>Panel Distance (PDD) (ft)</label>
+          <input type="number" min="0" step="0.001" data-shot-field="pdd" data-shot-id="${shot.id}" value="${shot.pdd}" />
+        </div>
+        <div class="result-grid">
+          <div class="result-item"><strong>Computed SPD:</strong> ${result.spd.toFixed(3)} ft</div>
+          <div class="result-item"><strong>Computed UG:</strong> ${result.ug.toFixed(4)}</div>
+          <div class="result-item"><strong>Computed Magnification:</strong> ${result.magnification.toFixed(4)}</div>
+          <div class="result-item"><strong>Blow-up %:</strong> ${result.blowUpPercent.toFixed(1)}%</div>
+          ${result.blowUpPercent > 20 ? '<div class="result-item warning-red">Warning: Magnification exceeds 20%.</div>' : ""}
+        </div>
+      `;
+
+      dom.shotCardsContainer.appendChild(wrapper);
+    });
+  }
+
+  function renderWarnings() {
+    const warnings = [];
+    if (requiredMissing()) {
+      warnings.push({ text: "Missing required inputs in Job Information or Source Information.", css: "warning-yellow" });
+    }
+
+    shotCards.forEach((shot, index) => {
+      const result = getShotResult(shot);
+      if (result.ug > 0.024) {
+        warnings.push({ text: `Shot ${index + 1}: UG exceeds 0.024.`, css: "warning-red" });
+      }
+      if (result.blowUpPercent > 20) {
+        warnings.push({ text: `Shot ${index + 1}: Magnification exceeds 20%.`, css: "warning-red" });
       }
     });
+
+    if (!warnings.length) {
+      warnings.push({ text: "No active warnings.", css: "" });
+    }
+
+    dom.warningsList.innerHTML = warnings.map((warning) => `<li class="${warning.css}">${warning.text}</li>`).join("");
   }
 
-  function persistInputs() {
-    const payload = {};
-    inputs.forEach((input) => {
-      payload[input.id] = input.value;
+  function saveState() {
+    const state = {
+      unitSite: dom.unitSite.value,
+      jobDate: dom.jobDate.value,
+      drawingNumber: dom.drawingNumber.value,
+      cml: dom.cml.value,
+      isotope: dom.isotope.value,
+      focusSpot: dom.focusSpot.value,
+      sourceActivity: dom.sourceActivity.value,
+      exposuresPerHour: dom.exposuresPerHour.value,
+      secondsPerExposure: dom.secondsPerExposure.value,
+      layers: materialLayers,
+      overallFilmDistance: dom.overallFilmDistance.value,
+      shots: shotCards,
+      exposureDistance: dom.exposureDistance.value,
+      targetIntensity: dom.targetIntensity.value,
+    };
+
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }
+
+  function loadState() {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    try {
+      const state = JSON.parse(raw);
+      dom.unitSite.value = state.unitSite || "";
+      dom.jobDate.value = state.jobDate || "";
+      dom.drawingNumber.value = state.drawingNumber || "";
+      dom.cml.value = state.cml || "";
+      dom.isotope.value = state.isotope || "IR192";
+      dom.focusSpot.value = state.focusSpot || "";
+      dom.sourceActivity.value = state.sourceActivity || "";
+      dom.exposuresPerHour.value = state.exposuresPerHour || 0;
+      dom.secondsPerExposure.value = state.secondsPerExposure || 0;
+      materialLayers = Array.isArray(state.layers) ? state.layers : [];
+      dom.overallFilmDistance.value = state.overallFilmDistance || 0;
+      shotCards = Array.isArray(state.shots) ? state.shots : [];
+      dom.exposureDistance.value = state.exposureDistance || 0;
+      dom.targetIntensity.value = state.targetIntensity || 2;
+    } catch (_e) {
+      // If stored JSON is malformed, ignore it and proceed with defaults.
+    }
+  }
+
+  function updateAll() {
+    dom.isotopeConstant.value = ISOTOPE_CONSTANTS[dom.isotope.value];
+
+    const timeFraction = getTimeFraction();
+    dom.timeFraction.textContent = timeFraction.toFixed(4);
+
+    dom.attenuationFactor.textContent = getAttenuationFactor().toFixed(6);
+    dom.boundary2.textContent = `${getBoundaryDistance(2).toFixed(1)} ft`;
+    dom.boundary100.textContent = `${getBoundaryDistance(100).toFixed(1)} ft`;
+    dom.exposureTime.textContent = `${getExposureMinutes().toFixed(1)} minutes`;
+
+    renderLayers();
+    renderShots();
+    renderWarnings();
+    saveState();
+  }
+
+  function addLayer() {
+    materialLayers.push({
+      id: crypto.randomUUID(),
+      material: "Steel",
+      thickness: 0,
+      hvlCount: 0,
     });
-    sessionStorage.setItem(storageKey, JSON.stringify(payload));
+    updateAll();
   }
 
-  loadSavedInputs();
-  inputs.forEach((input) => {
-    input.addEventListener("input", persistInputs);
+  function addShot() {
+    shotCards.push({
+      id: crypto.randomUUID(),
+      pdd: 0,
+    });
+    updateAll();
+  }
+
+  function onContainerChange(event) {
+    const layerId = event.target.getAttribute("data-layer-id");
+    const layerField = event.target.getAttribute("data-layer-field");
+    if (layerId && layerField) {
+      const layer = materialLayers.find((item) => item.id === layerId);
+      if (layer) {
+        layer[layerField] = event.target.value;
+        updateAll();
+        return;
+      }
+    }
+
+    const shotId = event.target.getAttribute("data-shot-id");
+    const shotField = event.target.getAttribute("data-shot-field");
+    if (shotId && shotField) {
+      const shot = shotCards.find((item) => item.id === shotId);
+      if (shot) {
+        shot[shotField] = event.target.value;
+        updateAll();
+      }
+    }
+  }
+
+  function onContainerClick(event) {
+    const removeLayerId = event.target.getAttribute("data-remove-layer");
+    if (removeLayerId) {
+      materialLayers = materialLayers.filter((layer) => layer.id !== removeLayerId);
+      updateAll();
+      return;
+    }
+
+    const removeShotId = event.target.getAttribute("data-remove-shot");
+    if (removeShotId) {
+      shotCards = shotCards.filter((shot) => shot.id !== removeShotId);
+      updateAll();
+    }
+  }
+
+  function generatePdf() {
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ unit: "pt", format: "letter" });
+    let y = 40;
+
+    function line(text, gap = 16) {
+      pdf.text(text, 40, y);
+      y += gap;
+      if (y > 740) {
+        pdf.addPage();
+        y = 40;
+      }
+    }
+
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(14);
+    line("RT Shot & Safety Calculator v2 Report", 22);
+    pdf.setFontSize(10);
+
+    pdf.setFont("helvetica", "bold");
+    line("Section 1 — Job Information");
+    pdf.setFont("helvetica", "normal");
+    line(`Unit / Site: ${dom.unitSite.value || "-"}`);
+    line(`Date: ${dom.jobDate.value || "-"}`);
+    line(`Drawing Number: ${dom.drawingNumber.value || "-"}`);
+    line(`CML: ${dom.cml.value || "-"}`);
+
+    pdf.setFont("helvetica", "bold");
+    line("Section 2 — Source Information");
+    pdf.setFont("helvetica", "normal");
+    line(`Isotope: ${dom.isotope.value}`);
+    line(`Constant (mR/hr per Ci @ 1 ft): ${ISOTOPE_CONSTANTS[dom.isotope.value]}`);
+    line(`Focus Spot (d): ${dom.focusSpot.value || "0"}`);
+    line(`Source Activity (Ci): ${dom.sourceActivity.value || "0"}`);
+
+    pdf.setFont("helvetica", "bold");
+    line("Section 3 — Boundary Distances");
+    pdf.setFont("helvetica", "normal");
+    line(`Time Fraction: ${getTimeFraction().toFixed(4)}`);
+    line(`2 mR/hr Boundary: ${getBoundaryDistance(2).toFixed(1)} ft`);
+    line(`100 mR/hr Boundary: ${getBoundaryDistance(100).toFixed(1)} ft`);
+
+    pdf.setFont("helvetica", "bold");
+    line("Section 4 — Material Layers");
+    pdf.setFont("helvetica", "normal");
+    if (materialLayers.length === 0) {
+      line("No material layers entered.");
+    } else {
+      materialLayers.forEach((layer, index) => {
+        line(`Layer ${index + 1}: ${layer.material}, Thickness ${layer.thickness} in, HVL ${layer.hvlCount}`);
+      });
+    }
+    line(`Total attenuation factor: ${getAttenuationFactor().toFixed(6)}`);
+
+    pdf.setFont("helvetica", "bold");
+    line("Section 5 — Shot Cards");
+    pdf.setFont("helvetica", "normal");
+    if (shotCards.length === 0) {
+      line("No shots entered.");
+    } else {
+      shotCards.forEach((shot, index) => {
+        const result = getShotResult(shot);
+        line(`Shot ${index + 1}: PDD ${Number(shot.pdd || 0).toFixed(3)} ft`);
+        line(`  SPD ${result.spd.toFixed(3)} ft | UG ${result.ug.toFixed(4)} | Mag ${result.magnification.toFixed(4)} | Blow-up ${result.blowUpPercent.toFixed(1)}%`);
+      });
+    }
+
+    pdf.setFont("helvetica", "bold");
+    line("Section 6 — Exposure Time");
+    pdf.setFont("helvetica", "normal");
+    line(`Estimated exposure time: ${getExposureMinutes().toFixed(1)} minutes`);
+
+    pdf.save("RT_Shot_Safety_Report_v2.pdf");
+  }
+
+  loadState();
+
+  if (!materialLayers.length) {
+    addLayer();
+  }
+  if (!shotCards.length) {
+    addShot();
+  }
+
+  [
+    dom.unitSite,
+    dom.jobDate,
+    dom.drawingNumber,
+    dom.cml,
+    dom.isotope,
+    dom.focusSpot,
+    dom.sourceActivity,
+    dom.exposuresPerHour,
+    dom.secondsPerExposure,
+    dom.overallFilmDistance,
+    dom.exposureDistance,
+    dom.targetIntensity,
+  ].forEach((element) => {
+    element.addEventListener("input", updateAll);
+    element.addEventListener("change", updateAll);
   });
+
+  dom.addLayerButton.addEventListener("click", addLayer);
+  dom.addShotButton.addEventListener("click", addShot);
+  dom.layersContainer.addEventListener("input", onContainerChange);
+  dom.layersContainer.addEventListener("change", onContainerChange);
+  dom.layersContainer.addEventListener("click", onContainerClick);
+  dom.shotCardsContainer.addEventListener("input", onContainerChange);
+  dom.shotCardsContainer.addEventListener("change", onContainerChange);
+  dom.shotCardsContainer.addEventListener("click", onContainerClick);
+  dom.generatePdfButton.addEventListener("click", generatePdf);
+
+  updateAll();
 })();
