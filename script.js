@@ -17,8 +17,10 @@
     isotopeConstant: document.getElementById("isotopeConstant"),
     focusSpot: document.getElementById("focusSpot"),
     sourceActivity: document.getElementById("sourceActivity"),
-    exposuresPerHour: document.getElementById("exposuresPerHour"),
-    minutesPerExposure: document.getElementById("minutesPerExposure"),
+    exposureTimeUnit: document.getElementById("exposureTimeUnit"),
+    timePerExposure: document.getElementById("timePerExposure"),
+    numberOfExposures: document.getElementById("numberOfExposures"),
+    totalExposureMinutesOverride: document.getElementById("totalExposureMinutesOverride"),
     tungstenCollimatorHvl: document.getElementById("tungstenCollimatorHvl"),
     beamMinutesPerHour: document.getElementById("beamMinutesPerHour"),
     timeFraction: document.getElementById("timeFraction"),
@@ -65,15 +67,37 @@
   }
 
   function getTimeFraction() {
-    const exposures = numberValue(dom.exposuresPerHour);
-    const minutes = numberValue(dom.minutesPerExposure);
-    return (exposures * minutes) / 60;
+    const totalMinutes = getTotalExposureMinutes();
+    return totalMinutes > 0 ? totalMinutes / 60 : 0;
   }
 
   function getBeamMinutesPerHour() {
-    const exposures = numberValue(dom.exposuresPerHour);
-    const minutes = numberValue(dom.minutesPerExposure);
-    return exposures * minutes;
+    return getTotalExposureMinutes();
+  }
+
+  function getTotalExposureMinutes() {
+    const timePerExposureRaw = dom.timePerExposure.value;
+    const numberOfExposuresRaw = dom.numberOfExposures.value;
+    const overrideRaw = dom.totalExposureMinutesOverride.value;
+
+    const overrideValue = Number(overrideRaw);
+    if (overrideRaw !== "" && Number.isFinite(overrideValue) && overrideValue >= 0) {
+      return overrideValue;
+    }
+
+    if (timePerExposureRaw === "" || numberOfExposuresRaw === "") {
+      return 0;
+    }
+
+    const timePerExposure = Number(timePerExposureRaw);
+    const numberOfExposures = Number(numberOfExposuresRaw);
+
+    if (!Number.isFinite(timePerExposure) || !Number.isFinite(numberOfExposures) || timePerExposure < 0 || numberOfExposures < 0) {
+      return 0;
+    }
+
+    const minutesPerExposure = dom.exposureTimeUnit.value === "seconds" ? timePerExposure / 60 : timePerExposure;
+    return minutesPerExposure * numberOfExposures;
   }
 
   function getMaterialStackHvlTotal() {
@@ -278,8 +302,10 @@
       isotope: dom.isotope.value,
       focusSpot: dom.focusSpot.value,
       sourceActivity: dom.sourceActivity.value,
-      exposuresPerHour: dom.exposuresPerHour.value,
-      minutesPerExposure: dom.minutesPerExposure.value,
+      exposureTimeUnit: dom.exposureTimeUnit.value,
+      timePerExposure: dom.timePerExposure.value,
+      numberOfExposures: dom.numberOfExposures.value,
+      totalExposureMinutesOverride: dom.totalExposureMinutesOverride.value,
       tungstenCollimatorHvl: dom.tungstenCollimatorHvl.value,
       layers: materialLayers,
       overallFilmDistance: dom.overallFilmDistance.value,
@@ -303,8 +329,10 @@
       dom.isotope.value = state.isotope || "IR192";
       dom.focusSpot.value = state.focusSpot || "";
       dom.sourceActivity.value = state.sourceActivity || "";
-      dom.exposuresPerHour.value = state.exposuresPerHour || 0;
-      dom.minutesPerExposure.value = state.minutesPerExposure || ((Number(state.secondsPerExposure) || 0) / 60);
+      dom.exposureTimeUnit.value = state.exposureTimeUnit || "minutes";
+      dom.timePerExposure.value = state.timePerExposure || state.minutesPerExposure || ((Number(state.secondsPerExposure) || 0) / 60);
+      dom.numberOfExposures.value = state.numberOfExposures || state.exposuresPerHour || 0;
+      dom.totalExposureMinutesOverride.value = state.totalExposureMinutesOverride || "";
       dom.tungstenCollimatorHvl.value = state.tungstenCollimatorHvl || 0;
       materialLayers = Array.isArray(state.layers) ? state.layers : [];
       dom.overallFilmDistance.value = state.overallFilmDistance || 0;
@@ -485,8 +513,10 @@
     dom.isotope,
     dom.focusSpot,
     dom.sourceActivity,
-    dom.exposuresPerHour,
-    dom.minutesPerExposure,
+    dom.exposureTimeUnit,
+    dom.timePerExposure,
+    dom.numberOfExposures,
+    dom.totalExposureMinutesOverride,
     dom.tungstenCollimatorHvl,
     dom.overallFilmDistance,
     dom.exposureDistance,
