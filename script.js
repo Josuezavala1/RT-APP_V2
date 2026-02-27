@@ -32,7 +32,6 @@
     layersContainer: document.getElementById("layersContainer"),
     addLayerButton: document.getElementById("addLayerButton"),
     attenuationFactor: document.getElementById("attenuationFactor"),
-    overallFilmDistance: document.getElementById("overallFilmDistance"),
     shotCardsContainer: document.getElementById("shotCardsContainer"),
     addShotButton: document.getElementById("addShotButton"),
     exposureDistance: document.getElementById("exposureDistance"),
@@ -160,34 +159,36 @@
 
   function getShotResult(shot) {
     const d = numberValue(dom.focusSpot);
-    const ofd = numberValue(dom.overallFilmDistance);
     const pdd = Number(shot.pdd) || 0;
-    const sod = pdd;
+    const spd = Number(shot.spd) || 0;
 
-    if (d <= 0 || sod <= 0) {
+    if (d <= 0 || pdd <= 0 || spd <= 0) {
       return {
-        sod,
-        spd: 0,
+        spd,
         ug: 0,
         magnification: 0,
         blowUpPercent: 0,
+        requiredSpdForUg: 0,
+        requiredSpdForBlowUp: 0,
+        requiredSpdFinal: 0,
       };
     }
 
-    // Solve UG = (d * OFD) / SOD for SOD at UG <= 0.024.
-    const requiredSod = ofd > 0 ? (d * ofd) / 0.024 : sod;
-    const spd = Math.max(requiredSod - pdd, 0);
-    const ug = ofd > 0 ? (d * ofd) / Math.max(requiredSod, sod) : 0;
-    const sfd = Math.max(requiredSod, sod) + ofd;
-    const magnification = sfd / Math.max(requiredSod, sod);
-    const blowUpPercent = (magnification - 1) * 100;
+    const ug = (d * pdd) / spd;
+    const magnification = (spd + pdd) / spd;
+    const blowUpPercent = (pdd / spd) * 100;
+    const requiredSpdForUg = (d * pdd) / 0.024;
+    const requiredSpdForBlowUp = pdd / 0.2;
+    const requiredSpdFinal = Math.max(requiredSpdForUg, requiredSpdForBlowUp);
 
     return {
-      sod: Math.max(requiredSod, sod),
       spd,
       ug,
       magnification,
       blowUpPercent,
+      requiredSpdForUg,
+      requiredSpdForBlowUp,
+      requiredSpdFinal,
     };
   }
 
@@ -254,14 +255,19 @@
           <button type="button" class="btn-remove" data-remove-shot="${shot.id}">Remove</button>
         </div>
         <div class="field-grid">
-          <label>Panel Distance (PDD) (ft)</label>
+          <label>PDD (Pipe-Detector Distance) (in)</label>
           <input type="number" min="0" step="0.001" data-shot-field="pdd" data-shot-id="${shot.id}" value="${shot.pdd}" />
+          <label>SPD (Source-Pipe Distance) (in)</label>
+          <input type="number" min="0" step="0.001" data-shot-field="spd" data-shot-id="${shot.id}" value="${shot.spd}" />
         </div>
         <div class="result-grid">
-          <div class="result-item"><strong>Computed SPD:</strong> ${result.spd.toFixed(3)} ft</div>
           <div class="result-item"><strong>Computed UG:</strong> ${result.ug.toFixed(4)}</div>
           <div class="result-item"><strong>Computed Magnification:</strong> ${result.magnification.toFixed(4)}</div>
           <div class="result-item"><strong>Blow-up %:</strong> ${result.blowUpPercent.toFixed(1)}%</div>
+          <div class="result-item"><strong>Required SPD for UG limit:</strong> ${result.requiredSpdForUg.toFixed(3)} in</div>
+          <div class="result-item"><strong>Required SPD for 20% mag:</strong> ${result.requiredSpdForBlowUp.toFixed(3)} in</div>
+          <div class="result-item"><strong>Required SPD final:</strong> ${result.requiredSpdFinal.toFixed(3)} in</div>
+          ${result.ug > 0.024 ? '<div class="result-item warning-red">Warning: UG exceeds 0.024.</div>' : ""}
           ${result.blowUpPercent > 20 ? '<div class="result-item warning-red">Warning: Magnification exceeds 20%.</div>' : ""}
         </div>
       `;
@@ -308,7 +314,6 @@
       totalExposureMinutesOverride: dom.totalExposureMinutesOverride.value,
       tungstenCollimatorHvl: dom.tungstenCollimatorHvl.value,
       layers: materialLayers,
-      overallFilmDistance: dom.overallFilmDistance.value,
       shots: shotCards,
       exposureDistance: dom.exposureDistance.value,
       targetIntensity: dom.targetIntensity.value,
@@ -335,8 +340,12 @@
       dom.totalExposureMinutesOverride.value = state.totalExposureMinutesOverride || "";
       dom.tungstenCollimatorHvl.value = state.tungstenCollimatorHvl || 0;
       materialLayers = Array.isArray(state.layers) ? state.layers : [];
-      dom.overallFilmDistance.value = state.overallFilmDistance || 0;
-      shotCards = Array.isArray(state.shots) ? state.shots : [];
+      shotCards = Array.isArray(state.shots)
+        ? state.shots.map((shot) => ({
+            ...shot,
+            spd: shot.spd ?? 0,
+          }))
+        : [];
       dom.exposureDistance.value = state.exposureDistance || 0;
       dom.targetIntensity.value = state.targetIntensity || 2;
     } catch (_e) {
@@ -379,6 +388,7 @@
     shotCards.push({
       id: crypto.randomUUID(),
       pdd: 0,
+      spd: 0,
     });
     updateAll();
   }
@@ -483,8 +493,9 @@
     } else {
       shotCards.forEach((shot, index) => {
         const result = getShotResult(shot);
-        line(`Shot ${index + 1}: PDD ${Number(shot.pdd || 0).toFixed(3)} ft`);
-        line(`  SPD ${result.spd.toFixed(3)} ft | UG ${result.ug.toFixed(4)} | Mag ${result.magnification.toFixed(4)} | Blow-up ${result.blowUpPercent.toFixed(1)}%`);
+        line(`Shot ${index + 1}: PDD ${Number(shot.pdd || 0).toFixed(3)} in | SPD ${Number(shot.spd || 0).toFixed(3)} in`);
+        line(`  UG ${result.ug.toFixed(4)} | Mag ${result.magnification.toFixed(4)} | Blow-up ${result.blowUpPercent.toFixed(1)}%`);
+        line(`  Req SPD (UG): ${result.requiredSpdForUg.toFixed(3)} in | Req SPD (20%): ${result.requiredSpdForBlowUp.toFixed(3)} in | Req SPD Final: ${result.requiredSpdFinal.toFixed(3)} in`);
       });
     }
 
@@ -518,7 +529,6 @@
     dom.numberOfExposures,
     dom.totalExposureMinutesOverride,
     dom.tungstenCollimatorHvl,
-    dom.overallFilmDistance,
     dom.exposureDistance,
     dom.targetIntensity,
   ].forEach((element) => {
