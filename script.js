@@ -262,10 +262,7 @@
         </div>
         <div class="result-grid">
           <div class="result-item"><strong>Computed UG:</strong> ${result.ug.toFixed(4)}</div>
-          <div class="result-item"><strong>Computed Magnification:</strong> ${result.magnification.toFixed(4)}</div>
-          <div class="result-item"><strong>Blow-up %:</strong> ${result.blowUpPercent.toFixed(1)}%</div>
           <div class="result-item"><strong>Required SPD for UG limit:</strong> ${result.requiredSpdForUg.toFixed(3)} in</div>
-          <div class="result-item"><strong>Required SPD for 20% mag:</strong> ${result.requiredSpdForBlowUp.toFixed(3)} in</div>
           <div class="result-item"><strong>Required SPD final:</strong> ${result.requiredSpdFinal.toFixed(3)} in</div>
           ${result.ug > 0.024 ? '<div class="result-item warning-red">Warning: UG exceeds 0.024.</div>' : ""}
           ${result.blowUpPercent > 20 ? '<div class="result-item warning-red">Warning: Magnification exceeds 20%.</div>' : ""}
