@@ -20,6 +20,7 @@
     exposureTimeUnit: document.getElementById("exposureTimeUnit"),
     timePerExposure: document.getElementById("timePerExposure"),
     numberOfExposures: document.getElementById("numberOfExposures"),
+    totalExposureMinutesOverride: document.getElementById("totalExposureMinutesOverride"),
     beamMinutesPerHour: document.getElementById("beamMinutesPerHour"),
     timeFraction: document.getElementById("timeFraction"),
     boundary2: document.getElementById("boundary2"),
@@ -81,6 +82,12 @@
   function getTotalExposureMinutes() {
     const timePerExposureRaw = dom.timePerExposure.value;
     const numberOfExposuresRaw = dom.numberOfExposures.value;
+    const overrideRaw = dom.totalExposureMinutesOverride.value;
+
+    const overrideValue = Number(overrideRaw);
+    if (overrideRaw !== "" && Number.isFinite(overrideValue) && overrideValue >= 0) {
+      return overrideValue;
+    }
 
     if (timePerExposureRaw === "" || numberOfExposuresRaw === "") {
       return 0;
@@ -321,6 +328,7 @@
       exposureTimeUnit: dom.exposureTimeUnit.value,
       timePerExposure: dom.timePerExposure.value,
       numberOfExposures: dom.numberOfExposures.value,
+      totalExposureMinutesOverride: dom.totalExposureMinutesOverride.value,
       layers: materialLayers,
       shots: shotCards,
       exposureDistance: dom.exposureDistance.value,
@@ -345,6 +353,7 @@
       dom.exposureTimeUnit.value = state.exposureTimeUnit || "minutes";
       dom.timePerExposure.value = state.timePerExposure || state.minutesPerExposure || ((Number(state.secondsPerExposure) || 0) / 60);
       dom.numberOfExposures.value = state.numberOfExposures || state.exposuresPerHour || 0;
+      dom.totalExposureMinutesOverride.value = state.totalExposureMinutesOverride || "";
       materialLayers = Array.isArray(state.layers) ? state.layers : [];
       shotCards = Array.isArray(state.shots)
         ? state.shots.map((shot) => ({
@@ -533,6 +542,7 @@
     dom.exposureTimeUnit,
     dom.timePerExposure,
     dom.numberOfExposures,
+    dom.totalExposureMinutesOverride,
     dom.exposureDistance,
     dom.targetIntensity,
   ].forEach((element) => {
