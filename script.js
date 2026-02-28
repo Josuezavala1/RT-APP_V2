@@ -12,7 +12,7 @@
     unitSite: document.getElementById("unitSite"),
     jobDate: document.getElementById("jobDate"),
     drawingNumber: document.getElementById("drawingNumber"),
-    cml: document.getElementById("cml"),
+    technician: document.getElementById("technician"),
     isotope: document.getElementById("isotope"),
     isotopeConstant: document.getElementById("isotopeConstant"),
     focusSpot: document.getElementById("focusSpot"),
@@ -335,7 +335,8 @@
       unitSite: dom.unitSite.value,
       jobDate: dom.jobDate.value,
       drawingNumber: dom.drawingNumber.value,
-      cml: dom.cml.value,
+      technician: dom.technician.value,
+      cml: dom.technician.value,
       isotope: dom.isotope.value,
       focusSpot: dom.focusSpot.value,
       sourceActivity: dom.sourceActivity.value,
@@ -360,7 +361,7 @@
       dom.unitSite.value = state.unitSite || "";
       dom.jobDate.value = state.jobDate || "";
       dom.drawingNumber.value = state.drawingNumber || "";
-      dom.cml.value = state.cml || "";
+      dom.technician.value = state.technician || state.cml || "";
       dom.isotope.value = state.isotope || "IR192";
       dom.focusSpot.value = state.focusSpot || "";
       dom.sourceActivity.value = state.sourceActivity || "";
@@ -497,7 +498,7 @@
     line(`Unit / Site: ${dom.unitSite.value || "-"}`);
     line(`Date: ${dom.jobDate.value || "-"}`);
     line(`Drawing Number: ${dom.drawingNumber.value || "-"}`);
-    line(`CML: ${dom.cml.value || "-"}`);
+    line(`Technician: ${dom.technician.value || "-"}`);
 
     pdf.setFont("helvetica", "bold");
     line("Section 2 — Source Information");
@@ -562,7 +563,7 @@
     dom.unitSite,
     dom.jobDate,
     dom.drawingNumber,
-    dom.cml,
+    dom.technician,
     dom.isotope,
     dom.focusSpot,
     dom.sourceActivity,
