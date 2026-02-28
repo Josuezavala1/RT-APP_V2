@@ -85,7 +85,7 @@
     const overrideRaw = dom.totalExposureMinutesOverride.value;
 
     const overrideValue = Number(overrideRaw);
-    if (overrideRaw !== "" && Number.isFinite(overrideValue) && overrideValue > 0) {
+    if (overrideRaw !== "" && Number.isFinite(overrideValue) && overrideValue >= 0) {
       return overrideValue;
     }
 
