@@ -336,7 +336,6 @@
       jobDate: dom.jobDate.value,
       drawingNumber: dom.drawingNumber.value,
       technician: dom.technician.value,
-      cml: dom.technician.value,
       isotope: dom.isotope.value,
       focusSpot: dom.focusSpot.value,
       sourceActivity: dom.sourceActivity.value,
