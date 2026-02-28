@@ -21,7 +21,6 @@
     timePerExposure: document.getElementById("timePerExposure"),
     numberOfExposures: document.getElementById("numberOfExposures"),
     totalExposureMinutesOverride: document.getElementById("totalExposureMinutesOverride"),
-    tungstenCollimatorHvl: document.getElementById("tungstenCollimatorHvl"),
     beamMinutesPerHour: document.getElementById("beamMinutesPerHour"),
     timeFraction: document.getElementById("timeFraction"),
     boundary2: document.getElementById("boundary2"),
@@ -99,14 +98,6 @@
     return minutesPerExposure * numberOfExposures;
   }
 
-  function getMaterialStackHvlTotal() {
-    if (!materialLayers.length) {
-      return 0;
-    }
-
-    return materialLayers.reduce((total, layer) => total + (Number(layer.hvlCount) || 0), 0);
-  }
-
   function getDistanceWithoutShield(limit = 2) {
     const ci = numberValue(dom.sourceActivity);
     const constant = ISOTOPE_CONSTANTS[dom.isotope.value] || 0;
@@ -123,8 +114,7 @@
     const ci = numberValue(dom.sourceActivity);
     const constant = ISOTOPE_CONSTANTS[dom.isotope.value] || 0;
     const dutyCycle = getTimeFraction();
-    const totalHvl = numberValue(dom.tungstenCollimatorHvl) + getMaterialStackHvlTotal();
-    const attenuation = Math.pow(0.5, totalHvl);
+    const attenuation = getAttenuationFactor();
 
     if (limit <= 0 || ci <= 0 || constant <= 0 || dutyCycle <= 0 || attenuation <= 0) {
       return 0;
@@ -333,7 +323,6 @@
       timePerExposure: dom.timePerExposure.value,
       numberOfExposures: dom.numberOfExposures.value,
       totalExposureMinutesOverride: dom.totalExposureMinutesOverride.value,
-      tungstenCollimatorHvl: dom.tungstenCollimatorHvl.value,
       layers: materialLayers,
       shots: shotCards,
       exposureDistance: dom.exposureDistance.value,
@@ -359,7 +348,6 @@
       dom.timePerExposure.value = state.timePerExposure || state.minutesPerExposure || ((Number(state.secondsPerExposure) || 0) / 60);
       dom.numberOfExposures.value = state.numberOfExposures || state.exposuresPerHour || 0;
       dom.totalExposureMinutesOverride.value = state.totalExposureMinutesOverride || "";
-      dom.tungstenCollimatorHvl.value = state.tungstenCollimatorHvl || 0;
       materialLayers = Array.isArray(state.layers) ? state.layers : [];
       shotCards = Array.isArray(state.shots)
         ? state.shots.map((shot) => ({
@@ -549,7 +537,6 @@
     dom.timePerExposure,
     dom.numberOfExposures,
     dom.totalExposureMinutesOverride,
-    dom.tungstenCollimatorHvl,
     dom.exposureDistance,
     dom.targetIntensity,
   ].forEach((element) => {
