@@ -162,6 +162,10 @@
     const pdd = Number(shot.pdd) || 0;
     const spd = Number(shot.spd) || 0;
 
+    const requiredMultiplier = getRequiredMultiplier(d);
+    const recommendedSpd = pdd > 0 && requiredMultiplier > 0 ? pdd * requiredMultiplier : 0;
+    const ugAtRecommended = recommendedSpd > 0 ? (d * pdd) / recommendedSpd : 0;
+
     if (d <= 0 || pdd <= 0 || spd <= 0) {
       return {
         spd,
@@ -171,6 +175,9 @@
         requiredSpdForUg: 0,
         requiredSpdForBlowUp: 0,
         requiredSpdFinal: 0,
+        requiredMultiplier,
+        recommendedSpd,
+        ugAtRecommended,
       };
     }
 
@@ -189,7 +196,26 @@
       requiredSpdForUg,
       requiredSpdForBlowUp,
       requiredSpdFinal,
+      requiredMultiplier,
+      recommendedSpd,
+      ugAtRecommended,
     };
+  }
+
+  function getRequiredMultiplier(focalSpot) {
+    if (focalSpot <= 0) {
+      return 0;
+    }
+
+    if (focalSpot < 0.12) {
+      return 6;
+    }
+
+    if (focalSpot < 0.14) {
+      return 7;
+    }
+
+    return 8;
   }
 
   function getExposureMinutes() {
@@ -262,10 +288,11 @@
         </div>
         <div class="result-grid">
           <div class="result-item"><strong>Computed UG:</strong> ${result.ug.toFixed(4)}</div>
-          <div class="result-item"><strong>Required SPD for UG limit:</strong> ${result.requiredSpdForUg.toFixed(3)} in</div>
-          <div class="result-item"><strong>Required SPD final:</strong> ${result.requiredSpdFinal.toFixed(3)} in</div>
-          ${result.ug > 0.024 ? '<div class="result-item warning-red">Warning: UG exceeds 0.024.</div>' : ""}
-          ${result.blowUpPercent > 20 ? '<div class="result-item warning-red">Warning: Magnification exceeds 20%.</div>' : ""}
+          <div class="result-item"><strong>Field Recommendation</strong></div>
+          <div class="result-item"><strong>Required Multiplier:</strong> ${result.requiredMultiplier > 0 ? `${result.requiredMultiplier}×` : "-"}</div>
+          <div class="result-item"><strong>Recommended SPD (in):</strong> ${result.recommendedSpd.toFixed(3)}</div>
+          <div class="result-item"><strong>UG @ Recommended:</strong> ${result.ugAtRecommended.toFixed(4)}</div>
+          ${result.ug > 0.024 ? '<div class="result-item warning-red"><strong>UG Status:</strong> FAIL — UG exceeds 0.024. Increase SPD.</div>' : '<div class="result-item warning-green"><strong>UG Status:</strong> PASS — UG is within 0.024.</div>'}
         </div>
       `;
 
@@ -283,9 +310,6 @@
       const result = getShotResult(shot);
       if (result.ug > 0.024) {
         warnings.push({ text: `Shot ${index + 1}: UG exceeds 0.024.`, css: "warning-red" });
-      }
-      if (result.blowUpPercent > 20) {
-        warnings.push({ text: `Shot ${index + 1}: Magnification exceeds 20%.`, css: "warning-red" });
       }
     });
 
