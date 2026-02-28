@@ -22,6 +22,7 @@
     numberOfExposures: document.getElementById("numberOfExposures"),
     totalExposureMinutesOverride: document.getElementById("totalExposureMinutesOverride"),
     beamMinutesPerHour: document.getElementById("beamMinutesPerHour"),
+    maxDoseAtPublic: document.getElementById("maxDoseAtPublic"),
     timeFraction: document.getElementById("timeFraction"),
     boundary2: document.getElementById("boundary2"),
     boundary100: document.getElementById("boundary100"),
@@ -374,6 +375,7 @@
     const timeFraction = getTimeFraction();
     dom.beamMinutesPerHour.textContent = getBeamMinutesPerHour().toFixed(1);
     dom.timeFraction.textContent = timeFraction.toFixed(4);
+    dom.maxDoseAtPublic.textContent = timeFraction > 0 ? (2 / timeFraction).toFixed(1) : "—";
 
     dom.attenuationFactor.textContent = getAttenuationFactor().toFixed(6);
     dom.boundary2.textContent = `${getBoundaryDistance(2).toFixed(1)} ft`;
