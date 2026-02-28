@@ -18,9 +18,9 @@
     focusSpot: document.getElementById("focusSpot"),
     sourceActivity: document.getElementById("sourceActivity"),
     exposureTimeUnit: document.getElementById("exposureTimeUnit"),
-    timePerExposureLabel: document.getElementById("timePerExposureLabel"),
     timePerExposure: document.getElementById("timePerExposure"),
     numberOfExposures: document.getElementById("numberOfExposures"),
+    totalExposureMinutesOverride: document.getElementById("totalExposureMinutesOverride"),
     beamMinutesPerHour: document.getElementById("beamMinutesPerHour"),
     timeFraction: document.getElementById("timeFraction"),
     boundary2: document.getElementById("boundary2"),
@@ -71,20 +71,23 @@
   }
 
   function getTimeFraction() {
-    const totalSeconds = getTotalExposureSecondsPerHour();
-    return totalSeconds > 0 ? totalSeconds / 3600 : 0;
+    const totalMinutes = getTotalExposureMinutes();
+    return totalMinutes > 0 ? totalMinutes / 60 : 0;
   }
 
-  function formatSecondsAsMinutesAndSeconds(totalSeconds) {
-    const safeSeconds = Number.isFinite(totalSeconds) && totalSeconds > 0 ? Math.floor(totalSeconds) : 0;
-    const minutes = Math.floor(safeSeconds / 60);
-    const seconds = safeSeconds % 60;
-    return `${minutes}:${String(seconds).padStart(2, "0")}`;
+  function getBeamMinutesPerHour() {
+    return getTotalExposureMinutes();
   }
 
-  function getTotalExposureSecondsPerHour() {
+  function getTotalExposureMinutes() {
     const timePerExposureRaw = dom.timePerExposure.value;
     const numberOfExposuresRaw = dom.numberOfExposures.value;
+    const overrideRaw = dom.totalExposureMinutesOverride.value;
+
+    const overrideValue = Number(overrideRaw);
+    if (overrideRaw !== "" && Number.isFinite(overrideValue) && overrideValue >= 0) {
+      return overrideValue;
+    }
 
     if (timePerExposureRaw === "" || numberOfExposuresRaw === "") {
       return 0;
@@ -97,12 +100,8 @@
       return 0;
     }
 
-    const secondsPerExposure = dom.exposureTimeUnit.value === "minutes" ? timePerExposure * 60 : timePerExposure;
-    return secondsPerExposure * numberOfExposures;
-  }
-
-  function updateTimePerExposureLabel() {
-    dom.timePerExposureLabel.textContent = dom.exposureTimeUnit.value === "minutes" ? "Time per exposure (min)" : "Time per exposure (sec)";
+    const minutesPerExposure = dom.exposureTimeUnit.value === "seconds" ? timePerExposure / 60 : timePerExposure;
+    return minutesPerExposure * numberOfExposures;
   }
 
   function getDistanceWithoutShield(limit = 2) {
@@ -329,6 +328,7 @@
       exposureTimeUnit: dom.exposureTimeUnit.value,
       timePerExposure: dom.timePerExposure.value,
       numberOfExposures: dom.numberOfExposures.value,
+      totalExposureMinutesOverride: dom.totalExposureMinutesOverride.value,
       layers: materialLayers,
       shots: shotCards,
       exposureDistance: dom.exposureDistance.value,
@@ -353,6 +353,7 @@
       dom.exposureTimeUnit.value = state.exposureTimeUnit || "minutes";
       dom.timePerExposure.value = state.timePerExposure || state.minutesPerExposure || ((Number(state.secondsPerExposure) || 0) / 60);
       dom.numberOfExposures.value = state.numberOfExposures || state.exposuresPerHour || 0;
+      dom.totalExposureMinutesOverride.value = state.totalExposureMinutesOverride || "";
       materialLayers = Array.isArray(state.layers) ? state.layers : [];
       shotCards = Array.isArray(state.shots)
         ? state.shots.map((shot) => ({
@@ -369,10 +370,9 @@
 
   function updateAll() {
     dom.isotopeConstant.value = ISOTOPE_CONSTANTS[dom.isotope.value];
-    updateTimePerExposureLabel();
 
     const timeFraction = getTimeFraction();
-    dom.beamMinutesPerHour.textContent = formatSecondsAsMinutesAndSeconds(getTotalExposureSecondsPerHour());
+    dom.beamMinutesPerHour.textContent = getBeamMinutesPerHour().toFixed(1);
     dom.timeFraction.textContent = timeFraction.toFixed(4);
 
     dom.attenuationFactor.textContent = getAttenuationFactor().toFixed(6);
@@ -542,6 +542,7 @@
     dom.exposureTimeUnit,
     dom.timePerExposure,
     dom.numberOfExposures,
+    dom.totalExposureMinutesOverride,
     dom.exposureDistance,
     dom.targetIntensity,
   ].forEach((element) => {
