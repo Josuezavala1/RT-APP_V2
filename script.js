@@ -199,6 +199,10 @@
     };
   }
 
+  function isShotIdMissing(shot) {
+    return !String(shot.shotId || "").trim();
+  }
+
   function getRequiredMultiplier(focalSpot) {
     if (focalSpot <= 0) {
       return 0;
@@ -278,6 +282,11 @@
           <button type="button" class="btn-remove" data-remove-shot="${shot.id}">Remove</button>
         </div>
         <div class="field-grid">
+          <label>Shot ID / Location <span class="required">*</span></label>
+          <div>
+            <input type="text" data-shot-field="shotId" data-shot-id="${shot.id}" value="${shot.shotId || ""}" />
+            ${isShotIdMissing(shot) ? '<div class="field-required-inline">Required</div>' : ""}
+          </div>
           <label>PDD (Pipe-Detector Distance) (in)</label>
           <input type="number" min="0" step="0.001" data-shot-field="pdd" data-shot-id="${shot.id}" value="${shot.pdd}" />
           <label>SPD (Source-Pipe Distance) (in)</label>
@@ -304,6 +313,10 @@
     }
 
     shotCards.forEach((shot, index) => {
+      if (isShotIdMissing(shot)) {
+        warnings.push({ text: `Shot ${index + 1}: Shot ID / Location is required.`, css: "warning-yellow" });
+      }
+
       const result = getShotResult(shot);
       if (result.ug > 0.024) {
         warnings.push({ text: `Shot ${index + 1}: UG exceeds 0.024.`, css: "warning-red" });
@@ -359,6 +372,7 @@
       shotCards = Array.isArray(state.shots)
         ? state.shots.map((shot) => ({
             ...shot,
+            shotId: shot.shotId || "",
             spd: shot.spd ?? 0,
           }))
         : [];
@@ -370,6 +384,8 @@
   }
 
   function updateAll() {
+    const hasMissingShotId = shotCards.some((shot) => isShotIdMissing(shot));
+
     dom.isotopeConstant.value = ISOTOPE_CONSTANTS[dom.isotope.value];
 
     const timeFraction = getTimeFraction();
@@ -388,6 +404,9 @@
     renderLayers();
     renderShots();
     renderWarnings();
+    if (dom.generatePdfButton) {
+      dom.generatePdfButton.disabled = hasMissingShotId;
+    }
     saveState();
   }
 
@@ -404,6 +423,7 @@
   function addShotCard() {
     shotCards.push({
       id: crypto.randomUUID(),
+      shotId: "",
       pdd: 0,
       spd: 0,
     });
@@ -449,6 +469,10 @@
   }
 
   function generatePdf() {
+    if (shotCards.some((shot) => isShotIdMissing(shot))) {
+      return;
+    }
+
     const { jsPDF } = window.jspdf;
     const pdf = new jsPDF({ unit: "pt", format: "letter" });
     let y = 40;
@@ -510,7 +534,8 @@
     } else {
       shotCards.forEach((shot, index) => {
         const result = getShotResult(shot);
-        line(`Shot ${index + 1}: PDD ${Number(shot.pdd || 0).toFixed(3)} in | SPD ${Number(shot.spd || 0).toFixed(3)} in`);
+        line(`Shot ${index + 1}: Shot ID / Location ${shot.shotId || "-"}`);
+        line(`  PDD ${Number(shot.pdd || 0).toFixed(3)} in | SPD ${Number(shot.spd || 0).toFixed(3)} in`);
         line(`  UG ${result.ug.toFixed(4)} | Mag ${result.magnification.toFixed(4)} | Blow-up ${result.blowUpPercent.toFixed(1)}%`);
         line(`  Req SPD (UG): ${result.requiredSpdForUg.toFixed(3)} in | Req SPD (20%): ${result.requiredSpdForBlowUp.toFixed(3)} in | Req SPD Final: ${result.requiredSpdFinal.toFixed(3)} in`);
       });

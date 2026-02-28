@@ -175,3 +175,16 @@ select:focus {
   color: var(--success);
   font-weight: 700;
 }
+
+
+.field-required-inline {
+  margin-top: 0.25rem;
+  color: var(--danger);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.btn-primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
