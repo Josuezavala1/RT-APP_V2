@@ -28,11 +28,11 @@
     distanceNoShield: document.getElementById("distanceNoShield"),
     distanceWithShield: document.getElementById("distanceWithShield"),
     distanceEmergency: document.getElementById("distanceEmergency"),
-    layersContainer: document.getElementById("layersContainer"),
-    addLayerButton: document.getElementById("addLayerButton"),
+    materials: document.getElementById("materials"),
+    addMaterial: document.getElementById("addMaterial"),
     attenuationFactor: document.getElementById("attenuationFactor"),
-    shotCardsContainer: document.getElementById("shotCardsContainer"),
-    addShotButton: document.getElementById("addShotButton"),
+    shots: document.getElementById("shots"),
+    addShot: document.getElementById("addShot"),
     exposureDistance: document.getElementById("exposureDistance"),
     targetIntensity: document.getElementById("targetIntensity"),
     exposureTime: document.getElementById("exposureTime"),
@@ -42,6 +42,12 @@
 
   let materialLayers = [];
   let shotCards = [];
+
+  // Backward-compatible aliases for legacy names used throughout this file.
+  dom.layersContainer = dom.materials;
+  dom.addLayerButton = dom.addMaterial;
+  dom.shotCardsContainer = dom.shots;
+  dom.addShotButton = dom.addShot;
 
   function numberValue(el) {
     const value = Number(el.value);
@@ -383,7 +389,7 @@
     saveState();
   }
 
-  function addLayer() {
+  function addMaterialLayer() {
     materialLayers.push({
       id: crypto.randomUUID(),
       material: "Steel",
@@ -393,7 +399,7 @@
     updateAll();
   }
 
-  function addShot() {
+  function addShotCard() {
     shotCards.push({
       id: crypto.randomUUID(),
       pdd: 0,
@@ -519,10 +525,10 @@
   loadState();
 
   if (!materialLayers.length) {
-    addLayer();
+    addMaterialLayer();
   }
   if (!shotCards.length) {
-    addShot();
+    addShotCard();
   }
 
   [
@@ -544,15 +550,25 @@
     element.addEventListener("change", updateAll);
   });
 
-  dom.addLayerButton.addEventListener("click", addLayer);
-  dom.addShotButton.addEventListener("click", addShot);
-  dom.layersContainer.addEventListener("input", onContainerChange);
-  dom.layersContainer.addEventListener("change", onContainerChange);
-  dom.layersContainer.addEventListener("click", onContainerClick);
-  dom.shotCardsContainer.addEventListener("input", onContainerChange);
-  dom.shotCardsContainer.addEventListener("change", onContainerChange);
-  dom.shotCardsContainer.addEventListener("click", onContainerClick);
-  dom.generatePdfButton.addEventListener("click", generatePdf);
+  if (dom.addMaterial) {
+    dom.addMaterial.addEventListener("click", addMaterialLayer);
+  }
+  if (dom.addShot) {
+    dom.addShot.addEventListener("click", addShotCard);
+  }
+  if (dom.layersContainer) {
+    dom.layersContainer.addEventListener("input", onContainerChange);
+    dom.layersContainer.addEventListener("change", onContainerChange);
+    dom.layersContainer.addEventListener("click", onContainerClick);
+  }
+  if (dom.shotCardsContainer) {
+    dom.shotCardsContainer.addEventListener("input", onContainerChange);
+    dom.shotCardsContainer.addEventListener("change", onContainerChange);
+    dom.shotCardsContainer.addEventListener("click", onContainerClick);
+  }
+  if (dom.generatePdfButton) {
+    dom.generatePdfButton.addEventListener("click", generatePdf);
+  }
 
   updateAll();
 })();
